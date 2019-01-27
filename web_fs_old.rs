@@ -1,12 +1,9 @@
 use std;
+use stdweb::web::TypedArray;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::io::ErrorKind;
 use std::str;
-use web_sys::{
-    XmlHttpRequest,
-    XmlHttpRequestResponseType
-};
 
 pub type IoError = std::io::Error;
 
@@ -43,36 +40,36 @@ impl FileSystem {
                 *buffer_state.borrow_mut() = BufferState::Error(msg);
             }
         };
-        let oReq = XmlHttpRequest::new();
-        oReq.open("GET",s,true).unwrap();
-        oReq.set_response_type(XmlHttpRequestResponseType::Arraybuffer);
 
         js!{
             var oReq = new XMLHttpRequest();
             var filename = @{s};
             oReq.open("GET", filename, true);
             oReq.responseType = "arraybuffer";
-            let js_fn = Closure::wrap(Box::new(move |s| {
+
+            var on_error_js = function(s){
+                var on_error = @{on_error};
                 on_error(s);
                 on_error.drop();
-            }) as Box<dyn Fn()>);
-            oReq.onload(Some(js_fn));
-            let js_fn_2 = Closure::wrap(Box::new(move |oEvent|{
-                let status = oReq.status().unwrap();
-                let arrayBuffer = oReq.response().unwrap();
-                if (status == 200 && arrayBuffer){
-                    on_get_buffer(arrayBuffer);
-                    on_get_buffer.drop()
-                } else{
+            };
+
+            oReq.onload = function (oEvent) {
+                var status = oReq.status;
+                var arrayBuffer = oReq.response; // Note: not oReq.responseText
+                if (status == 200 && arrayBuffer) {
+                    var on_get_buffer = @{on_get_buffer};
+                    on_get_buffer(new Uint8Array(arrayBuffer));
+                    on_get_buffer.drop();
+                } else {
                     on_error_js("Fail to get array buffer from network..");
                 }
-            }) as Box<dyn Fn()>);
-            oReq.onerror(Some(js_fn_2));
-            let js_fn_3 = Closure::wrap(Box::new(move |oEvent|{
+            };
+
+            oReq.onerror = function(oEvent) {
                 on_error_js("Fail to read from network..");
-            }) as Box<dyn Fn()>); 
-            oReq.onerror(Some(js_fn_3))?;
-            oReq.send()?;
+            };
+
+            oReq.send(null);
         }
 
         Ok(File {

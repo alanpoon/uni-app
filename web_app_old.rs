@@ -1,16 +1,16 @@
+use stdweb;
 use AppConfig;
 
-use web_sys::Event;
-use web_sys::{
-    MouseEvent,
-    KeyboardEvent,
-    HtmlCanvasElement,
-    HtmlBodyElement,
-    Window,
-    EventTarget,
-    HtmlEvent,
-    Document
+use stdweb::traits::IEvent;
+use stdweb::unstable::TryInto;
+use stdweb::web::event::{
+    IKeyboardEvent, IMouseEvent, KeyDownEvent, KeyUpEvent, MouseButton, MouseDownEvent,
+    MouseMoveEvent, MouseUpEvent, ResizeEvent,
 };
+use stdweb::web::html_element::CanvasElement;
+use stdweb::web::window;
+use stdweb::web::IEventTarget;
+use stdweb::web::IHtmlElement;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -18,8 +18,7 @@ use std::rc::Rc;
 use AppEvent;
 
 pub struct App {
-    window: HtmlCanvasElement,
-    window_o:Window,
+    window: CanvasElement,
     pub events: Rc<RefCell<Vec<AppEvent>>>,
     device_pixel_ratio: f32,
 }
@@ -48,38 +47,67 @@ macro_rules! map_event {
 // In browser request full screen can only called under event handler.
 // So basically this function is useless at this moment.
 #[allow(dead_code)]
-fn request_full_screen(canvas: &HtmlCanvasElement) {
-    canvas.request_fullscreen().unwrap();
+fn request_full_screen(canvas: &CanvasElement) {
+    js!{
+        var c = @{&canvas};
+        if (c.requestFullscreen) {
+            c.requestFullscreen();
+        } else if (c.webkitRequestFullscreen) {
+            c.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+        } else if (c.mozRequestFullScreen) {
+            c.mozRequestFullScreen();
+        } else if (c.msRequestFullscreen) {
+            c.msRequestFullscreen();
+        }
+    };
 }
 
 impl App {
     pub fn new(config: AppConfig) -> App {
-        
+        use stdweb::web::*;
+
         if config.headless {
             // Right now we did not support headless in web.
             unimplemented!();
         }
-        let window = web_sys::window().expect("no global `window` exists");
-        let document = window.document().expect("should have a document on window");
-        let body = document.body().expect("document should have a body");
-        let canvas: HtmlCanvasElement = document.create_element("canvas")
+
+        let _ = stdweb::initialize();
+        let canvas: CanvasElement = document()
+            .create_element("canvas")
+            .unwrap()
+            .try_into()
             .unwrap();
-        let real_to_css_pixels = Window::device_pixel_ratio() as u32;
-        canvas.set_width(config.size.0 * real_to_css_pixels);
-        canvas.set_height(config.size.1 * real_to_css_pixels);
-        canvas.set_tab_index(1);
+
+        js!{
+            // setup the buffer size
+            // see https://webglfundamentals.org/webgl/lessons/webgl-resizing-the-canvas.html
+            var realToCSSPixels = window.devicePixelRatio;
+            (@{&canvas}).width = @{config.size.0} * realToCSSPixels;
+            (@{&canvas}).height = @{config.size.1} * realToCSSPixels;
+
+            // setup the canvas size
+            (@{&canvas}).style.width = @{config.size.0} + "px";
+            (@{&canvas}).style.height = @{config.size.1} + "px";
+
+            // Make it focusable
+            // https://stackoverflow.com/questions/12886286/addeventlistener-for-keydown-on-canvas
+            @{&canvas}.tabIndex = 1;
+        };
 
         if !config.show_cursor {
-            /*    
             js! {
                 @{&canvas}.style.cursor="none";
             };
-            */
         }
 
-        let device_pixel_ratio: f64 = Window::device_pixel_ratio();
+        let device_pixel_ratio: f64 = js!{ return window.devicePixelRatio; }.try_into().unwrap();
+
+        let body = document().query_selector("body").unwrap().unwrap();
+
         body.append_child(&canvas);
-        canvas.focus().unwrap();
+        js!{
+            @{&canvas}.focus();
+        }
 
         if config.fullscreen {
             println!("Webgl do not support with_screen.");
@@ -96,29 +124,45 @@ impl App {
     }
 
     fn setup_listener(&mut self) {
-        let canvas: &HtmlCanvasElement = self.canvas();
+        let canvas: &CanvasElement = self.canvas();
 
-        canvas.add_event_listener_with_callback(map_event!{
+        canvas.add_event_listener(map_event!{
             self.events,
             MouseDownEvent,
             MouseDown,
             e,
-            MouseEvent::button(),
+            events::MouseButtonEvent {button:match e.button() {
+                MouseButton::Left => 0,
+                MouseButton::Wheel => 1,
+                MouseButton::Right => 2,
+                MouseButton::Button4 => 3,
+                MouseButton::Button5 => 4,
+            }},
             false
         });
-        canvas.add_event_listener_with_callback(map_event!{
+        canvas.add_event_listener(map_event!{
             self.events,
             MouseUpEvent,
             MouseUp,
             e,
-            MouseEvent::button(),
+            events::MouseButtonEvent {button:match e.button() {
+                MouseButton::Left => 0,
+                MouseButton::Wheel => 1,
+                MouseButton::Right => 2,
+                MouseButton::Button4 => 3,
+                MouseButton::Button5 => 4,
+            }},
             true
         });
 
-        canvas.add_event_listener_with_callback({
+        canvas.add_event_listener({
             let canvas = canvas.clone();
-            let canvas_x: f64 = canvas.get_bounding_client_rect().left();
-            let canvas_y: f64 = canvas.get_bounding_client_rect().top();
+            let canvas_x: f64 = js! {
+            return @{&canvas}.getBoundingClientRect().left; }.try_into()
+            .unwrap();
+            let canvas_y: f64 = js! {
+            return @{&canvas}.getBoundingClientRect().top; }.try_into()
+            .unwrap();
             map_event!{
                 self.events,
                 MouseMoveEvent,
@@ -134,7 +178,13 @@ impl App {
             KeyDownEvent,
             KeyDown,
             e,
-            KeyboardEvent::key_code(),
+            events::KeyDownEvent {
+                code: e.code(),
+                key: e.key(),
+                shift: e.shift_key(),
+                alt: e.alt_key(),
+                ctrl: e.ctrl_key(),
+            },
             true
         });
 
@@ -153,7 +203,13 @@ impl App {
             KeyUpEvent,
             KeyUp,
             e,
-            KeyboardEvent::key_code(),
+            events::KeyUpEvent {
+                code: e.code(),
+                key: e.key(),
+                shift: e.shift_key(),
+                alt: e.alt_key(),
+                ctrl: e.ctrl_key(),
+            },
             true
         });
 
@@ -169,8 +225,8 @@ impl App {
         });
     }
 
-    pub fn print<T: Into<JsValue>>(msg: T) {
-        web_sys::console::log_1(&msg.into());
+    pub fn print<T: Into<String>>(msg: T) {
+        js!{ console.log(@{msg.into()})};
     }
 
     pub fn exit() {}
@@ -184,7 +240,7 @@ impl App {
         return self.device_pixel_ratio;
     }
 
-    pub fn canvas(&self) -> &HtmlCanvasElement {
+    pub fn canvas(&self) -> &CanvasElement {
         &self.window
     }
 
@@ -215,16 +271,18 @@ impl App {
     {
         self.run_loop(callback);
 
-        //stdweb::event_loop();
+        stdweb::event_loop();
     }
 
     pub fn set_fullscreen(&mut self, _b: bool) {
         // unimplemented!();
     }
+    pub fn now(&self) -> f64 {
+        // perforamce now is in ms
+        // https://developer.mozilla.org/en-US/docs/Web/API/Performance/now
+        let v = js! { return performance.now() / 1000.0; };
+        return v.try_into().unwrap();
+    }
+
 }
 
-pub fn now(&self) -> f64 {
-    // perforamce now is in ms
-    // https://developer.mozilla.org/en-US/docs/Web/API/Performance/now
-    self.window_o.performance().now()/1000.0
-}

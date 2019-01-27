@@ -2,8 +2,7 @@
 
 // wasm-unknown-unknown
 #[cfg(target_arch = "wasm32")]
-#[macro_use]
-extern crate stdweb;
+extern crate web_sys;
 
 #[cfg(target_arch = "wasm32")]
 #[path = "web_app.rs"]
