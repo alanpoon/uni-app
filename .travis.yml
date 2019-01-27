@@ -1,0 +1,19 @@
+--- 
+addons: 
+  apt: 
+    packages: ~
+cache: cargo
+language: rust
+matrix: 
+  allow_failures: 
+    - 
+      os: osx
+os: 
+  - linux
+rust: 
+  - nightly
+script: 
+  - "cargo install cargo-web --force"
+  - "rustup target install wasm32-unknown-unknown"
+  - "cargo web start --example basic --release"
+sudo: false
