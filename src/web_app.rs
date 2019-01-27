@@ -2,14 +2,15 @@ use AppConfig;
 
 use web_sys::Event;
 use web_sys::{
+    console,
     MouseEvent,
     KeyboardEvent,
     HtmlCanvasElement,
     HtmlBodyElement,
     Window,
     EventTarget,
-    HtmlEvent,
-    Document
+    Document,
+    UrlSearchParams
 };
 
 use std::cell::RefCell;
@@ -98,30 +99,30 @@ impl App {
     fn setup_listener(&mut self) {
         let canvas: &HtmlCanvasElement = self.canvas();
 
-        canvas.add_event_listener_with_callback(map_event!{
+        canvas.add_event_listener_with_callback("mousedown",map_event!{
             self.events,
-            MouseDownEvent,
+            MouseEvent,
             MouseDown,
             e,
             MouseEvent::button(),
             false
         });
-        canvas.add_event_listener_with_callback(map_event!{
+        canvas.add_event_listener_with_callback("mouseup",map_event!{
             self.events,
-            MouseUpEvent,
+            MouseEvent,
             MouseUp,
             e,
             MouseEvent::button(),
             true
         });
 
-        canvas.add_event_listener_with_callback({
+        canvas.add_event_listener_with_callback("mousemove",{
             let canvas = canvas.clone();
             let canvas_x: f64 = canvas.get_bounding_client_rect().left();
             let canvas_y: f64 = canvas.get_bounding_client_rect().top();
             map_event!{
                 self.events,
-                MouseMoveEvent,
+                MouseEvent,
                 MousePos,
                 e,
                 (e.client_x() as f64 - canvas_x,e.client_y() as f64 - canvas_y),
@@ -129,7 +130,7 @@ impl App {
             }
         });
 
-        canvas.add_event_listener(map_event!{
+        canvas.add_event_listener_with_callback("keydown",map_event!{
             self.events,
             KeyDownEvent,
             KeyDown,
@@ -148,36 +149,34 @@ impl App {
         //     }
         // });
 
-        canvas.add_event_listener(map_event!{
+        canvas.add_event_listener_with_callback("keyup",map_event!{
             self.events,
-            KeyUpEvent,
+            KeyboardEvent,
             KeyUp,
             e,
             KeyboardEvent::key_code(),
             true
         });
+        canvas.set_resize(Some(map_event!{
+            self.events,
+            MouseEvent,
+            Resized,
+            (canvas.offset_width() as u32, canvas.offset_height() as u32)
+        }));
 
-        canvas.add_event_listener({
-            let canvas = canvas.clone();
-
-            map_event!{
-                self.events,
-                ResizeEvent,
-                Resized,
-                (canvas.offset_width() as u32, canvas.offset_height() as u32)
-            }
-        });
     }
 
     pub fn print<T: Into<JsValue>>(msg: T) {
-        web_sys::console::log_1(&msg.into());
+        console::log_1(&msg.into());
     }
 
     pub fn exit() {}
 
     pub fn get_params() -> Vec<String> {
-        let params = js!{ return window.location.search.substring(1).split("&"); };
-        params.try_into().unwrap()
+        let arr =UrlSearchParams::new()?.get_all();
+        let mut result:Vec<String> = Vec::with_capacity(arr.length() as usize);
+        arr.for_each(&mut |x, _, _| result.push(x.as_string().unwrap()));
+        result
     }
 
     pub fn hidpi_factor(&self) -> f32 {
@@ -223,8 +222,9 @@ impl App {
     }
 }
 
-pub fn now(&self) -> f64 {
+pub fn now() -> f64 {
     // perforamce now is in ms
     // https://developer.mozilla.org/en-US/docs/Web/API/Performance/now
-    self.window_o.performance().now()/1000.0
+    //self.window_o.performance().now()/1000.0
+    23.0
 }

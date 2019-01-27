@@ -212,7 +212,8 @@ impl App {
             },
             true
         });
-
+        
+        
         canvas.add_event_listener({
             let canvas = canvas.clone();
 

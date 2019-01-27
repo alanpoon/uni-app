@@ -305,11 +305,11 @@ impl App {
         }
     }
     /// return the time since the start of the program in seconds
-    pub fn now(&self) -> f64 {
-        // precise_time_s() is in second
-        // https://doc.rust-lang.org/time/time/fn.precise_time_s.html
-        return time::precise_time_s();
-    }
+
 }
 
-
+pub fn now() -> f64 {
+    // precise_time_s() is in second
+    // https://doc.rust-lang.org/time/time/fn.precise_time_s.html
+    return time::precise_time_s();
+}
