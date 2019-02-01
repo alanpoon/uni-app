@@ -5,6 +5,9 @@
 extern crate web_sys;
 
 #[cfg(target_arch = "wasm32")]
+extern crate wasm_bindgen;
+
+#[cfg(target_arch = "wasm32")]
 #[path = "web_app.rs"]
 pub mod sys;
 

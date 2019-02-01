@@ -1,4 +1,3 @@
-use std;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::io::ErrorKind;
@@ -7,9 +6,10 @@ use web_sys::{
     XmlHttpRequest,
     XmlHttpRequestResponseType
 };
-
+use wasm_bindgen::prelude::*;
+use web_sys::{Blob,File};
+use js_sys::ArrayBuffer;
 pub type IoError = std::io::Error;
-
 pub struct FileSystem {}
 
 enum BufferState {
@@ -19,16 +19,26 @@ enum BufferState {
 }
 
 pub struct File {
-    buffer_state: Rc<RefCell<BufferState>>,
+    blob: Blob,
 }
 
 impl FileSystem {
+    pub fn open(s: &str) -> Result<File>{
+        let buffer:[u8]  = ArrayBuffer::new(50);
+        let f = File{
+            blob:File::new_with_u8_array_sequence(ArrayBuffer,s)
+        };
+        ok(f)
+    }
+} 
+impl FileSystem {
     pub fn open(s: &str) -> Result<File, IoError> {
+
         let buffer_state = Rc::new(RefCell::new(BufferState::Empty));
 
         let on_get_buffer = {
             let buffer_state = buffer_state.clone();
-            move |ab: Array<u8>| {
+            move |ab: Vec<u8>| {
                 let data = ab.to_vec();
                 if data.len() > 0 {
                     *buffer_state.borrow_mut() = BufferState::Buffer(data);
@@ -46,6 +56,11 @@ impl FileSystem {
         let oReq = XmlHttpRequest::new();
         oReq.open("GET",s,true).unwrap();
         oReq.set_response_type(XmlHttpRequestResponseType::Arraybuffer);
+        let on_error_js = move|s|{
+                var on_error = on_error.clone();
+                on_error(s);
+                on_error.drop();
+            };
         let js_fn = Closure::wrap(Box::new(move |s| {
                 on_error(s);
                 on_error.drop();

@@ -15,7 +15,7 @@ use web_sys::{
 
 use std::cell::RefCell;
 use std::rc::Rc;
-
+use wasm_bindgen::JsCast;
 use AppEvent;
 
 pub struct App {
@@ -132,7 +132,7 @@ impl App {
 
         canvas.add_event_listener_with_callback("keydown",map_event!{
             self.events,
-            KeyDownEvent,
+            KeyEvent,
             KeyDown,
             e,
             KeyboardEvent::key_code(),
@@ -191,7 +191,7 @@ impl App {
     where
         F: 'static + FnMut(&mut Self) -> (),
     {
-        window().request_animation_frame(move |_t: f64| {
+        self.window.request_animation_frame(move |_t: f64| {
             callback(&mut self);
             self.events.borrow_mut().clear();
             self.run_loop(callback);

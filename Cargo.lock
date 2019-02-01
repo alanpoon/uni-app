@@ -620,7 +620,9 @@ name = "uni-app"
 version = "0.1.0"
 dependencies = [
  "glutin 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "js-sys 0.3.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.40 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasm-bindgen 0.2.33 (registry+https://github.com/rust-lang/crates.io-index)",
  "web-sys 0.3.10 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
